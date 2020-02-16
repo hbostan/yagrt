@@ -1,40 +1,31 @@
 package main
 
 import (
-	"image"
-	"image/color"
-	"image/png"
-	"math/rand"
-	"os"
+	"fmt"
+	"io/ioutil"
+	"strings"
+	"time"
 
 	"github.com/hbostann/yagrt"
 )
 
 func main() {
-	sphere := yagrt.Sphere{yagrt.Vector{}, 1}
-	camera := yagrt.Camera{}
-	camera.LookAt(yagrt.Vector{0, 0, -5}, yagrt.Vector{}, yagrt.Vector{0, 1, 0})
-	w, h := 1024, 1024
+	// if len(os.Args) != 2 {
+	// 	fmt.Println("Please provide the scene xml file")
+	// }
 
-	f, err := os.OpenFile("out.png", os.O_CREATE|os.O_WRONLY, 0666)
+	// yagrt.Render(os.Args[1])
+	files, err := ioutil.ReadDir("./scenes")
 	if err != nil {
-		return
+		fmt.Println("Error while listing dir")
 	}
-	image := image.NewNRGBA(image.Rect(0, 0, w, h))
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			image.SetNRGBA(x, y, color.NRGBA{0, 0, 0, 255})
-			ray := camera.CastRay(x, y, w, h)
-			t := sphere.Intersect(ray)
-			if t < yagrt.INF {
-				r := uint8(rand.Intn(255))
-				g := uint8(rand.Intn(255))
-				b := uint8(rand.Intn(255))
-				image.SetNRGBA(x, y, color.NRGBA{r, g, b, 255})
-			}
+	for _, f := range files {
+		if strings.HasSuffix(f.Name(), ".xml") {
+			fmt.Printf("%v took ", f.Name())
+			start := time.Now()
+			yagrt.Render("./scenes/" + f.Name())
+			elapsed := time.Since(start)
+			fmt.Printf("%v \n", elapsed)
 		}
-	}
-	if err = png.Encode(f, image); err != nil {
-		return
 	}
 }

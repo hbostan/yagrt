@@ -1,6 +1,8 @@
 package yagrt
 
-import "math"
+import (
+	"math"
+)
 
 // Vector is a 3D vector containing 3 float64s for each dimension
 type Vector struct {
@@ -50,12 +52,16 @@ func (v Vector) SubScalar(s float64) Vector {
 	return Vector{v.X - s, v.Y - s, v.Z - s}
 }
 
-// MulScalar multiplies the vector with the given multiplier.
-func (v Vector) MulScalar(m float64) Vector {
+// Mul multiplies the vector with the given multiplier.
+func (v Vector) Mul(m float64) Vector {
 	return Vector{v.X * m, v.Y * m, v.Z * m}
 }
 
 // DivScalar divies the vector by the given divisor.
 func (v Vector) DivScalar(d float64) Vector {
 	return Vector{v.X / d, v.Y / d, v.Z / d}
+}
+
+func (v Vector) Negate() Vector {
+	return Vector{-v.X, -v.Y, -v.Z}
 }

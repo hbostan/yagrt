@@ -1,0 +1,375 @@
+package yagrt
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+
+	"github.com/beevik/etree"
+)
+
+func ParseScene(filename string) Scene {
+	var scene Scene
+	doc := etree.NewDocument()
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		fmt.Println("Cannot find XML:", filename)
+	}
+	if err := doc.ReadFromFile(filename); err != nil {
+		panic(err)
+	}
+	root := doc.SelectElement("Scene")
+
+	// Background Color
+	elem := root.SelectElement("BackgroundColor")
+	if elem != nil {
+		col, err := colorFromString(strings.TrimSpace(elem.Text()))
+		if err != nil {
+			fmt.Println("Cannot set BackgroundColor")
+		}
+		scene.BackgroundColor = col
+	}
+
+	// ShadowRayEpsilon
+	elem = root.SelectElement("ShadowRayEpsilon")
+	if elem != nil {
+		eps, err := ParseFloat(strings.TrimSpace(elem.Text()))
+		if err != nil {
+			fmt.Println("Cannot set BackgroundColor")
+		}
+		scene.ShadowRayEpsilon = eps
+	}
+
+	// IntersectionTestEpsilon
+	elem = root.SelectElement("IntersectionTestEpsilon")
+	if elem != nil {
+		eps, err := ParseFloat(strings.TrimSpace(elem.Text()))
+		if err != nil {
+			fmt.Println("Cannot set BackgroundColor")
+		}
+		scene.IntersectEpsilon = eps
+	}
+	// Cameras
+	elem = root.SelectElement("Cameras")
+	cameras := elem.SelectElements("Camera")
+	for _, cam := range cameras {
+		camera := parseCamera(cam)
+		scene.Cameras = append(scene.Cameras, camera)
+	}
+
+	elem = root.SelectElement("Lights")
+	// Ambient Light
+	amblight := elem.SelectElement("AmbientLight")
+	amb, err := colorFromString(amblight.Text())
+	if err != nil {
+		fmt.Println("Cannot parse Ambient Light")
+	}
+	scene.AmbientLight = amb
+	// Lights
+	lights := elem.SelectElements("PointLight")
+	for _, l := range lights {
+		light := parseLight(l)
+		scene.PointLights = append(scene.PointLights, light)
+	}
+
+	// Materials
+	elem = root.SelectElement("Materials")
+	materials := elem.SelectElements("Material")
+	for _, mat := range materials {
+		material := parseMaterial(mat)
+		scene.Materials = append(scene.Materials, material)
+	}
+
+	// VertexData
+	elem = root.SelectElement("VertexData")
+	vertices := strings.Split(strings.TrimSpace(elem.Text()), "\n")
+	for i, vert := range vertices {
+		vert = strings.TrimSpace(vert)
+		if len(vert) == 0 {
+			continue
+		}
+		vec, err := vectorFromString(vert)
+		if err != nil {
+			fmt.Printf("Cannot parse %v Vertex %v", i, err)
+			continue
+		}
+		scene.VertexData = append(scene.VertexData, vec)
+	}
+
+	// Objects
+	elem = root.SelectElement("Objects")
+	spheres := elem.SelectElements("Sphere")
+	for _, sph := range spheres {
+		sphere := parseSphere(sph, scene.VertexData, scene.Materials)
+		scene.Shapes = append(scene.Shapes, sphere)
+	}
+
+	triangles := elem.SelectElements("Triangle")
+	for _, trg := range triangles {
+		triangle := parseTriangle(trg, scene.VertexData, scene.Materials)
+		scene.Shapes = append(scene.Shapes, triangle)
+	}
+
+	meshes := elem.SelectElements("Mesh")
+	for _, msh := range meshes {
+		mesh := parseMesh(msh, scene.VertexData, scene.Materials)
+		scene.Shapes = append(scene.Shapes, mesh)
+	}
+
+	return scene
+}
+
+func parseMesh(msh *etree.Element, vertexData []Vector, materials []Material) *Mesh {
+	var mesh Mesh
+	elem := msh.SelectElement("Material")
+	mat, err := strconv.ParseInt(strings.TrimSpace(elem.Text()), 10, 64)
+	if err != nil {
+		fmt.Println("Cannot parse mesh material")
+	}
+	mesh.Mat = materials[int(mat)-1]
+	faces := strings.Split(strings.TrimSpace(msh.SelectElement("Faces").Text()), "\n")
+	for i, face := range faces {
+		triangle := Triangle{}
+		indices := strings.Fields(strings.TrimSpace(face))
+		v1, err1 := strconv.ParseInt(indices[0], 10, 64)
+		v2, err2 := strconv.ParseInt(indices[1], 10, 64)
+		v3, err3 := strconv.ParseInt(indices[2], 10, 64)
+		if err1 != nil || err2 != nil || err3 != nil {
+			fmt.Printf("Cannot parse indices of face with id %v\n", i)
+		}
+		triangle.Mat = mesh.Mat
+		triangle.V0 = vertexData[int(v1)-1]
+		triangle.V1 = vertexData[int(v2)-1]
+		triangle.V2 = vertexData[int(v3)-1]
+		mesh.Triangles = append(mesh.Triangles, triangle)
+	}
+	return &mesh
+}
+
+func parseTriangle(trg *etree.Element, vertexData []Vector, materials []Material) *Triangle {
+	var triangle Triangle
+	elem := trg.SelectElement("Material")
+	mat, err := strconv.ParseInt(strings.TrimSpace(elem.Text()), 10, 64)
+	if err != nil {
+		fmt.Println("Cannot parse triangle material")
+	}
+	elem = trg.SelectElement("Indices")
+	indices := strings.Fields(strings.TrimSpace(elem.Text()))
+	v1, err1 := strconv.ParseInt(indices[0], 10, 64)
+	v2, err2 := strconv.ParseInt(indices[1], 10, 64)
+	v3, err3 := strconv.ParseInt(indices[2], 10, 64)
+	if err1 != nil || err2 != nil || err3 != nil {
+		fmt.Printf("Cannot parse indices of triangle with id %v\n", trg.SelectAttr("id"))
+	}
+	triangle.Mat = materials[int(mat)-1]
+	triangle.V0 = vertexData[int(v1)-1]
+	triangle.V1 = vertexData[int(v2)-1]
+	triangle.V2 = vertexData[int(v3)-1]
+	return &triangle
+}
+
+func parseSphere(sph *etree.Element, vertexData []Vector, materials []Material) *Sphere {
+	var sphere Sphere
+	elem := sph.SelectElement("Material")
+	mat, err := strconv.ParseInt(strings.TrimSpace(elem.Text()), 10, 64)
+	if err != nil {
+		fmt.Println("Cannot parse sphere material")
+	}
+	elem = sph.SelectElement("Radius")
+	rad, err := ParseFloat(strings.TrimSpace(elem.Text()))
+	if err != nil {
+		fmt.Println("Cannot parse sphere Radius")
+	}
+	elem = sph.SelectElement("Center")
+	cen, err := strconv.ParseInt(strings.TrimSpace(elem.Text()), 10, 64)
+	if err != nil {
+		fmt.Println("Cannot parse sphere Center")
+	}
+	sphere.Mat = materials[int(mat)-1]
+	sphere.Radius = rad
+	sphere.Origin = vertexData[cen-1]
+	return &sphere
+}
+
+func parseMaterial(mat *etree.Element) Material {
+	var material Material
+	elem := mat.SelectElement("AmbientReflectance")
+	ar, err := colorFromString(strings.TrimSpace(elem.Text()))
+	if err != nil {
+		fmt.Println("Cannot parse AmbientReflectance of Material")
+	}
+	elem = mat.SelectElement("DiffuseReflectance")
+	dr, err := colorFromString(strings.TrimSpace(elem.Text()))
+	if err != nil {
+		fmt.Println("Cannot parse DiffuseReflectance of Material")
+	}
+	elem = mat.SelectElement("SpecularReflectance")
+	sr, err := colorFromString(strings.TrimSpace(elem.Text()))
+	if err != nil {
+		fmt.Println("Cannot parse SpecularReflectance of Material")
+	}
+	elem = mat.SelectElement("PhongExponent")
+	ph, err := ParseFloat(strings.TrimSpace(elem.Text()))
+	if err != nil {
+		fmt.Println("Cannot parse PhongExponent of Material")
+	}
+
+	material.AmbientReflectance = ar
+	material.DiffuseReflectance = dr
+	material.SpecularReflectance = sr
+	material.PhongExponent = ph
+	return material
+}
+
+func parseLight(light *etree.Element) PointLight {
+	var pointLight PointLight
+	elem := light.SelectElement("Position")
+	pos, err := vectorFromString(strings.TrimSpace(elem.Text()))
+	if err != nil {
+		fmt.Println("Cannot parse Light position")
+	}
+	elem = light.SelectElement("Intensity")
+	ints, err := colorFromString(strings.TrimSpace(elem.Text()))
+	if err != nil {
+		fmt.Println("Cannot parse Light Intensity")
+	}
+	pointLight.Position = pos
+	pointLight.Intensity = ints
+	return pointLight
+}
+
+func parseCamera(cam *etree.Element) Camera {
+	var camera Camera
+	var pos, gaze, up Vector
+	//fmt.Printf("%v (id=%v)\n", cam.Tag, cam.SelectAttr("id").Value)
+	// Position
+	camElem := cam.SelectElement("Position")
+	if camElem != nil {
+		vec, err := vectorFromString(strings.TrimSpace(camElem.Text()))
+		if err != nil {
+			fmt.Println("Cannot get camera position")
+		}
+		pos = vec
+	}
+	// Gaze
+	camElem = cam.SelectElement("Gaze")
+	if camElem != nil {
+		vec, err := vectorFromString(strings.TrimSpace(camElem.Text()))
+		if err != nil {
+			fmt.Println("Cannot get camera position")
+		}
+		gaze = vec
+	}
+	// Up
+	camElem = cam.SelectElement("Up")
+	if camElem != nil {
+		vec, err := vectorFromString(strings.TrimSpace(camElem.Text()))
+		if err != nil {
+			fmt.Println("Cannot get camera position")
+		}
+		up = vec
+	}
+
+	// NearPlane
+	camElem = cam.SelectElement("NearPlane")
+	if camElem != nil {
+		nums := strings.Fields(strings.TrimSpace(camElem.Text()))
+		if len(nums) != 4 {
+			fmt.Println("NearPlane should consists of l, r, b, t elements")
+		}
+		var l, r, b, t float64
+		var err error
+		if l, err = ParseFloat(nums[0]); err != nil {
+			fmt.Println("Nearplane Left value parse error")
+		}
+		if r, err = ParseFloat(nums[1]); err != nil {
+			fmt.Println("Nearplane Right value parse error")
+		}
+		if b, err = ParseFloat(nums[2]); err != nil {
+			fmt.Println("Nearplane Bottom value parse error")
+		}
+		if t, err = ParseFloat(nums[3]); err != nil {
+			fmt.Println("Nearplane Top value parse error")
+		}
+		camera.NearPlane.Left = l
+		camera.NearPlane.Right = r
+		camera.NearPlane.Bottom = b
+		camera.NearPlane.Top = t
+	}
+
+	// NearDistance
+	camElem = cam.SelectElement("NearDistance")
+	if camElem != nil {
+		d, err := ParseFloat(strings.TrimSpace(camElem.Text()))
+		if err != nil {
+			fmt.Println("Cannot parse NearDistance")
+		}
+		camera.Distance = d
+	}
+
+	// ImageResolution
+	camElem = cam.SelectElement("ImageResolution")
+	if camElem != nil {
+		nums := strings.Fields(strings.TrimSpace(camElem.Text()))
+		if len(nums) != 2 {
+			fmt.Println("Resolution must be 2D")
+		}
+		width, err := strconv.ParseInt(nums[0], 10, 64)
+		if err != nil {
+			fmt.Println("Cannot parse Width of Resolution")
+		}
+		height, err := strconv.ParseInt(nums[1], 10, 64)
+		if err != nil {
+			fmt.Println("Cannot parse Height of Resolution")
+		}
+		camera.Resolution.Width = int(width)
+		camera.Resolution.Height = int(height)
+	}
+
+	// ImageName
+	camElem = cam.SelectElement("ImageName")
+	if camElem != nil {
+		camera.ImageName = strings.TrimSpace(camElem.Text())
+	}
+	// INITIALIZE CAMERA DIRECTION
+	camera.LookAt(pos, gaze, up)
+	return camera
+}
+
+func vectorFromString(s string) (Vector, error) {
+	nums := strings.Fields(s)
+	if len(nums) != 3 {
+		return Vector{}, fmt.Errorf("Cannot convert to vector without 3 elements")
+	}
+	var x, y, z float64
+	var err error
+	if x, err = ParseFloat(nums[0]); err != nil {
+		return Vector{}, fmt.Errorf("Cannot parse X value of Vector")
+	}
+	if y, err = ParseFloat(nums[1]); err != nil {
+		return Vector{}, fmt.Errorf("Cannot parse Y value of Vector")
+	}
+	if z, err = ParseFloat(nums[2]); err != nil {
+		return Vector{}, fmt.Errorf("Cannot parse Z value of Vector")
+	}
+	return Vector{x, y, z}, nil
+}
+
+func colorFromString(s string) (Color, error) {
+	nums := strings.Fields(s)
+	if len(nums) != 3 {
+		return Color{}, fmt.Errorf("Cannot convert to vector without 3 elements")
+	}
+	var r, g, b float64
+	var err error
+	if r, err = ParseFloat(nums[0]); err != nil {
+		return Color{}, fmt.Errorf("Cannot parse X value of Vector")
+	}
+	if g, err = ParseFloat(nums[1]); err != nil {
+		return Color{}, fmt.Errorf("Cannot parse Y value of Vector")
+	}
+	if b, err = ParseFloat(nums[2]); err != nil {
+		return Color{}, fmt.Errorf("Cannot parse Z value of Vector")
+	}
+	return Color{r, g, b}, nil
+}
