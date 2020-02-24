@@ -18,31 +18,39 @@ func (s *Sphere) Intersect(r Ray) *Hit {
 	b := 2 * r.Dir.Dot(to)
 	c := to.Dot(to) - s.Radius*s.Radius
 	d := b*b - 4*a*c
-	t := INF
-	if d < -EPS {
+	if d < HitEpsilon {
 		return nil
-	} else if d < EPS {
-		t = -b / 2 * a
-	} else {
-		d = math.Sqrt(d)
-		t1 := (-b + d) / (2 * a)
-		t2 := (-b - d) / (2 * a)
-		t = math.Min(t1, t2)
-		if t2 < 0 {
-			t = t1
-		} else {
-			t = t2
-		}
 	}
-	p := r.Origin.Add(r.Dir.Mul(t))
+	d = math.Sqrt(d)
+	t1 := (-b + d) / (2 * a)
+	t2 := (-b - d) / (2 * a)
+	var small float64
+	var big float64
+	if small = t1; t2 < t1 {
+		small = t2
+	}
+	if big = t1; t2 > t1 {
+		big = t2
+	}
+
+	if small < HitEpsilon {
+		if big < HitEpsilon {
+			return nil
+		}
+		small = big
+	}
+
+	p := r.Origin.Add(r.Dir.Mul(small))
 	n := s.Normal(p)
-	return &Hit{T: t, Shape: s, Ray: Ray{p, n}}
+	return &Hit{T: small, Shape: s, Normal: n}
 }
 
+// Normal returns the sufrace normal of a sphere
 func (s *Sphere) Normal(p Vector) Vector {
 	return p.Sub(s.Origin).Normalize()
 }
 
+// Material returns the material of a sphere
 func (s *Sphere) Material() *Material {
 	return &s.Mat
 }

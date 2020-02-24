@@ -1,88 +1,62 @@
 package yagrt
 
-import (
-	"image"
-	"image/color"
-	"math"
-)
+import "math"
 
+// Scene describes a scene with cameras, lights, shapes and their materials
 type Scene struct {
-	BackgroundColor  Color
-	ShadowRayEpsilon float64
-	IntersectEpsilon float64
-	Cameras          []Camera
-	AmbientLight     Color
-	PointLights      []PointLight
-	Materials        []Material
-	VertexData       []Vector
-	Shapes           []Shape
+	BackgroundColor Color
+	Cameras         []Camera
+	AmbientLight    Color
+	PointLights     []PointLight
+	Materials       []Material
+	VertexData      []Vector
+	Shapes          []Shape
 }
 
-func (s Scene) Render(camIdx int, image *image.NRGBA) {
-	camera := s.Cameras[camIdx]
-
-	for y := 0; y < camera.Resolution.Height; y++ {
-		for x := 0; x < camera.Resolution.Width; x++ {
-			var r, g, b uint8
-			r, g, b = 0, 0, 0
-			hit := s.Intersect(camera.CastRay(x, y))
-			if hit != nil {
-				r = uint8((float64(y) / float64(camera.Resolution.Height)) * 255)
-				g = uint8((float64(x) / float64(camera.Resolution.Width)) * 255)
-				b = uint8(((float64(y) / float64(camera.Resolution.Height)) + (float64(x) / float64(camera.Resolution.Width))) / 2 * 255)
-			}
-			image.SetNRGBA(x, y, color.NRGBA{r, g, b, 255})
-		}
-	}
-}
-
+// Intersect tries to intersect a given ray with each object in the scene and
+// returns the closest intersection as a Hit struct
 func (s *Scene) Intersect(r Ray) *Hit {
 	var closestHit *Hit = nil
 	for _, shape := range s.Shapes {
 		hit := shape.Intersect(r)
-		if hit != nil && hit.T > s.IntersectEpsilon && (closestHit == nil || hit.T < closestHit.T) {
+		if hit != nil && hit.T > HitEpsilon && (closestHit == nil || hit.T < closestHit.T) {
 			closestHit = hit
 		}
 	}
 	return closestHit
 }
 
-func (s *Scene) Shadow(r Ray) bool {
-	for _, shape := range s.Shapes {
-		hit := shape.Intersect(r)
-		if hit != nil && hit.T < INF && hit.T > 0 {
-			return true
-		}
-	}
-	return false
-}
-
+// Sample is used to sample a scene to get a color for that sample
 func (s *Scene) Sample(r Ray) Color {
-	col := Color{}
+	col := s.BackgroundColor
 	if hit := s.Intersect(r); hit != nil {
-		//fmt.Println(hit)
-		intersect := hit.Ray.Origin
-		normal := hit.Ray.Dir
+		intersect := r.Origin.Add(r.Dir.Mul(hit.T))
+		normal := hit.Normal
 		mat := hit.Shape.Material()
-		w_0 := r.Origin.Sub(intersect).Normalize()
+
 		// Ambient
 		col = col.Add(mat.AmbientReflectance.MulColor(s.AmbientLight))
-		// Light it up
-
+		// Light it up!
 		for _, light := range s.PointLights {
-			lightDistance := light.Position.Sub(intersect)
-			w_i := lightDistance.Normalize()
-			shadowRay := Ray{intersect.Add((w_i.Mul(s.ShadowRayEpsilon))), w_i}
-			if s.Shadow(shadowRay) {
-				continue
+			intersect = intersect.Add(normal.Mul(ShadowEpsilon))
+			lightVector := light.Position.Sub(intersect)
+			lightDirection := lightVector.Normalize()
+			lightDistance := lightVector.Length()
+			shadowRay := Ray{intersect, lightDirection}
+			if shadowHit := s.Intersect(shadowRay); shadowHit != nil {
+				shadowDist := shadowRay.Dir.Mul(shadowHit.T).Length()
+				if shadowDist > ShadowEpsilon && shadowDist < lightDistance-ShadowEpsilon {
+					continue
+				}
 			}
-			lightDistanceSq := lightDistance.Length() * lightDistance.Length()
-			diffCosTheta := normal.Dot(w_i)
 			// Diffuse
-			col = col.Add((mat.DiffuseReflectance.MulColor(light.Intensity)).Mul(diffCosTheta / lightDistanceSq))
+			diffCosTheta := math.Max(0, lightDirection.Dot(normal))
+			attenuatedLight := light.Intensity.Div(lightDistance * lightDistance)
+			col = col.Add(mat.DiffuseReflectance.MulColor(attenuatedLight).Mul(diffCosTheta))
 			// Specular
-			specCosTheta := math.Max(0, normal.Dot((w_0.Add(w_i)).Normalize()))
-			col = col.Add((mat.SpecularReflectance.MulColor(light.Intensity)).Mul((math.Pow(specCosTheta, mat.PhongExponent)) / lightDistanceSq))
+			halfVector := lightDirection.Sub(r.Dir.Normalize()).Normalize()
+			specCosTheta := math.Max(0, halfVector.Dot(normal))
+			col = col.Add(mat.SpecularReflectance.MulColor(attenuatedLight).Mul((math.Pow(specCosTheta, mat.PhongExponent)) / lightDistance * lightDistance))
 		}
 	}
 	return col

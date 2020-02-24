@@ -21,10 +21,10 @@ func (v Vector) Dot(o Vector) float64 {
 
 // Cross calculates the cross product of two vectors (v.Cross(o) = v X o)
 func (v Vector) Cross(o Vector) Vector {
-	X := v.Y*o.Z - v.Z*o.Y
-	Y := v.Z*o.X - v.X*o.Z
-	Z := v.X*o.Y - v.Y*o.X
-	return Vector{X, Y, Z}
+	a := v.Y*o.Z - v.Z*o.Y
+	b := v.Z*o.X - v.X*o.Z
+	c := v.X*o.Y - v.Y*o.X
+	return Vector{a, b, c}
 }
 
 // Normalize normalizes the vector by dividing it by its length
@@ -62,6 +62,7 @@ func (v Vector) DivScalar(d float64) Vector {
 	return Vector{v.X / d, v.Y / d, v.Z / d}
 }
 
+// Negate flips the sign of a vector, same as Vector.Mul(-1)
 func (v Vector) Negate() Vector {
 	return Vector{-v.X, -v.Y, -v.Z}
 }

@@ -19,25 +19,32 @@ type Camera struct {
 		Height int
 	}
 	ImageName     string
-	TopLeftCorner Vector
+	topLeftCorner Vector
+	pixelWidth    float64
+	pixelHeight   float64
 }
 
 // LookAt recomputes the coordinate system of the camera from gaze and up
 func (c *Camera) LookAt(p, gaze, up Vector) {
+	gaze = gaze.Normalize()
+	up = up.Normalize()
 	c.Position = p
-	c.W = gaze.Sub(c.Position).Normalize().Negate()
-	c.U = up.Cross(c.W).Normalize()
-	c.V = c.W.Cross(c.U).Normalize()
-	c.TopLeftCorner = c.Position.Sub(c.W.Mul(c.Distance)).Add(c.U.Mul(c.NearPlane.Left)).Add(c.V.Mul(c.NearPlane.Top))
+	c.W = gaze.Negate().Normalize() // Careful Here
+	c.U = gaze.Cross(up).Normalize()
+	c.V = c.U.Cross(gaze).Normalize()
+	planeMid := c.W.Mul(c.Distance)
+	leftSide := c.U.Mul(c.NearPlane.Left)
+	topSide := c.V.Mul(c.NearPlane.Top)
+	c.topLeftCorner = c.Position.Sub(planeMid).Add(leftSide).Add(topSide)
+	c.pixelWidth = (c.NearPlane.Right - c.NearPlane.Left) / float64(c.Resolution.Width)
+	c.pixelHeight = (c.NearPlane.Top - c.NearPlane.Bottom) / float64(c.Resolution.Height)
 }
 
-// CastRay creates a Ray from the position of the camera to the (x,y) on
-// image plane
-// TODO: Check type conversions
+// CastRay creates a Ray from the position of the camera to the (x,y) on image plane
 func (c *Camera) CastRay(x, y int) Ray {
-	su := (c.NearPlane.Right - c.NearPlane.Left) * (float64(x) + 0.5) / float64(c.Resolution.Width)
-	sv := (c.NearPlane.Top - c.NearPlane.Bottom) * (float64(y) + 0.5) / float64(c.Resolution.Height)
-	trg := c.TopLeftCorner.Add(c.U.Mul(su)).Sub(c.V.Mul(sv))
-	dir := trg.Sub(c.Position)
+	xOffset := c.U.Mul(c.pixelWidth * (0.5 + float64(x)))
+	yOffset := c.V.Mul(c.pixelHeight * (0.5 + float64(y)))
+	dst := c.topLeftCorner.Add(xOffset).Sub(yOffset)
+	dir := dst.Sub(c.Position).Normalize()
 	return Ray{c.Position, dir}
 }

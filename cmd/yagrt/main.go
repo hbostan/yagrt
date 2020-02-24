@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"strings"
 	"time"
 
@@ -10,22 +11,20 @@ import (
 )
 
 func main() {
-	// if len(os.Args) != 2 {
-	// 	fmt.Println("Please provide the scene xml file")
-	// }
-
-	// yagrt.Render(os.Args[1])
-	files, err := ioutil.ReadDir("./scenes")
+	files, err := ioutil.ReadDir("./")
 	if err != nil {
-		fmt.Println("Error while listing dir")
+		fmt.Println("Error while reading dir")
 	}
+	if _, err := os.Stat("outputs"); os.IsNotExist(err) {
+		os.Mkdir("outputs", 0755)
+	}
+
 	for _, f := range files {
 		if strings.HasSuffix(f.Name(), ".xml") {
-			fmt.Printf("%v took ", f.Name())
 			start := time.Now()
-			yagrt.Render("./scenes/" + f.Name())
+			yagrt.Render(f.Name())
 			elapsed := time.Since(start)
-			fmt.Printf("%v \n", elapsed)
+			fmt.Printf("%v took %v \n", f.Name(), elapsed)
 		}
 	}
 }

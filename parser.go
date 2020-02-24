@@ -9,7 +9,9 @@ import (
 	"github.com/beevik/etree"
 )
 
-func ParseScene(filename string) Scene {
+// ParseScene parses the given xml scene and fill in a Scene struct
+// TODO: Fix this crappy code
+func ParseScene(filename string) *Scene {
 	var scene Scene
 	doc := etree.NewDocument()
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
@@ -30,14 +32,14 @@ func ParseScene(filename string) Scene {
 		scene.BackgroundColor = col
 	}
 
-	// ShadowRayEpsilon
+	// Shadow Epsilon
 	elem = root.SelectElement("ShadowRayEpsilon")
 	if elem != nil {
 		eps, err := ParseFloat(strings.TrimSpace(elem.Text()))
 		if err != nil {
 			fmt.Println("Cannot set BackgroundColor")
 		}
-		scene.ShadowRayEpsilon = eps
+		ShadowEpsilon = eps
 	}
 
 	// IntersectionTestEpsilon
@@ -47,7 +49,7 @@ func ParseScene(filename string) Scene {
 		if err != nil {
 			fmt.Println("Cannot set BackgroundColor")
 		}
-		scene.IntersectEpsilon = eps
+		HitEpsilon = eps
 	}
 	// Cameras
 	elem = root.SelectElement("Cameras")
@@ -115,8 +117,7 @@ func ParseScene(filename string) Scene {
 		mesh := parseMesh(msh, scene.VertexData, scene.Materials)
 		scene.Shapes = append(scene.Shapes, mesh)
 	}
-
-	return scene
+	return &scene
 }
 
 func parseMesh(msh *etree.Element, vertexData []Vector, materials []Material) *Mesh {
@@ -193,25 +194,42 @@ func parseSphere(sph *etree.Element, vertexData []Vector, materials []Material) 
 
 func parseMaterial(mat *etree.Element) Material {
 	var material Material
+	var ar, dr, sr Color
+	var ph float64
+	var err error
 	elem := mat.SelectElement("AmbientReflectance")
-	ar, err := colorFromString(strings.TrimSpace(elem.Text()))
-	if err != nil {
-		fmt.Println("Cannot parse AmbientReflectance of Material")
+	if elem != nil {
+		ar, err = colorFromString(strings.TrimSpace(elem.Text()))
+		if err != nil {
+			fmt.Println("Cannot parse AmbientReflectance of Material")
+		}
+	} else {
+		fmt.Println("No AmbientReflectance using (0, 0, 0)")
 	}
 	elem = mat.SelectElement("DiffuseReflectance")
-	dr, err := colorFromString(strings.TrimSpace(elem.Text()))
-	if err != nil {
-		fmt.Println("Cannot parse DiffuseReflectance of Material")
+	if elem != nil {
+		dr, err = colorFromString(strings.TrimSpace(elem.Text()))
+		if err != nil {
+			fmt.Println("Cannot parse DiffuseReflectance of Material")
+		}
+	} else {
+		fmt.Println("No DiffuseReflectance using (0, 0, 0)")
 	}
 	elem = mat.SelectElement("SpecularReflectance")
-	sr, err := colorFromString(strings.TrimSpace(elem.Text()))
-	if err != nil {
-		fmt.Println("Cannot parse SpecularReflectance of Material")
+	if elem != nil {
+		sr, err = colorFromString(strings.TrimSpace(elem.Text()))
+		if err != nil {
+			fmt.Println("Cannot parse SpecularReflectance of Material")
+		}
+	} else {
+		fmt.Println("No SpecularReflectance using (0, 0, 0)")
 	}
 	elem = mat.SelectElement("PhongExponent")
-	ph, err := ParseFloat(strings.TrimSpace(elem.Text()))
-	if err != nil {
-		fmt.Println("Cannot parse PhongExponent of Material")
+	if elem != nil {
+		ph, err = ParseFloat(strings.TrimSpace(elem.Text()))
+		if err != nil {
+			fmt.Println("Cannot parse PhongExponent of Material")
+		}
 	}
 
 	material.AmbientReflectance = ar
