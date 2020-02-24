@@ -1,7 +1,9 @@
 # Yet Another Go Ray Tracer (yagrt)
 This is a CPU ray tracer written purely in Golang.
 
-![DragonLowRes](examples/dragon_lowres.png)
+<p align="center">
+  <img src="https://raw.githubusercontent.com/hbostann/yagrt/master/examples/dragon_lowres.png" width=360>
+</p>
 
 :white_check_mark: Sphere and Triangle Intersections  
 :white_check_mark: Point Lights  
