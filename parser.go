@@ -141,7 +141,7 @@ func parseMesh(msh *etree.Element, vertexData []Vector, materials []Material) *M
 		fmt.Println("Cannot parse mesh material")
 	}
 	meshmat := materials[int(mat)-1]
-	var triangles []*Triangle
+	var triangles []Shape
 	faces := strings.Split(strings.TrimSpace(msh.SelectElement("Faces").Text()), "\n")
 	for i, face := range faces {
 		indices := strings.Fields(strings.TrimSpace(face))

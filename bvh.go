@@ -95,32 +95,23 @@ func (n *BVHNode) Intersect(r Ray, hit *Hit) bool {
 		hit.Shape = nil
 		return false
 	}
-	if isHit := n.Shape.Intersect(r, hit); !isHit || (n.Left == nil && n.Right == nil) {
+	if isHit := n.Shape.Intersect(r, hit); !isHit {
+		hit.Shape = nil
+		return false
+	} else if n.Left == nil && n.Right == nil {
+		hit.Shape = n.Shape
 		return true
 	}
 
 	var otherHit Hit
-	rayDir := 0.0
-	switch n.splitAxis {
-	case AxisX:
-		rayDir = r.Dir.X
-	case AxisY:
-		rayDir = r.Dir.Y
-	case AxisZ:
-		rayDir = r.Dir.Z
-	}
+
 	var firstHit, secondHit bool
-	if rayDir >= 0 {
-		firstHit = n.Left.Intersect(r, hit)
-		secondHit = n.Right.Intersect(r, &otherHit)
-	} else {
-		firstHit = n.Right.Intersect(r, hit)
-		secondHit = n.Left.Intersect(r, &otherHit)
-	}
+	firstHit = n.Left.Intersect(r, hit)
+	secondHit = n.Right.Intersect(r, &otherHit)
 	if secondHit && (!firstHit || hit.T > otherHit.T) {
 		*hit = otherHit
 	}
-	return true
+	return firstHit || secondHit
 }
 
 func (n *BVHNode) BoundingBox() Box {

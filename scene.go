@@ -1,6 +1,9 @@
 package yagrt
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 // Scene describes a scene with cameras, lights, shapes and their materials
 type Scene struct {
@@ -16,7 +19,9 @@ type Scene struct {
 
 func NewScene(bc Color, cams []Camera, al Color, pl []PointLight, mats []Material, vdata []Vector, shapes []Shape) *Scene {
 	// BVH Construction Here
-	return &Scene{bc, cams, al, pl, mats, vdata, shapes, NewBVH(shapes)}
+	bvh := NewBVH(shapes)
+	fmt.Printf("Background: %v\nAmbient: %v\nCams: %v\nMats: %v\nVertex: %v\nShapes: %v\nBVH: %v\n", bc, al, cams, pl, len(vdata), len(shapes), bvh)
+	return &Scene{bc, cams, al, pl, mats, vdata, shapes, bvh}
 }
 
 // Intersect tries to intersect a given ray with each object in the scene and

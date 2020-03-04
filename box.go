@@ -25,15 +25,16 @@ func (a Box) Center() Vector {
 }
 
 func (b *Box) Intersect(r Ray, hit *Hit) bool {
+	//hit.Shape = nil
 	invDir := Vector{1 / r.Dir.X, 1 / r.Dir.Y, 1 / r.Dir.Z}
 	n := b.Min.Sub(r.Origin).MulVector(invDir)
 	f := b.Max.Sub(r.Origin).MulVector(invDir)
 	n, f = n.Min(f), n.Max(f)
 	t0 := math.Max(math.Max(n.X, n.Y), n.Z)
 	t1 := math.Min(math.Min(f.X, f.Y), f.Z)
-	hit.T = t0
+	hit.T = math.Min(t0, t1)
 	hit.Shape = b
-	return t0 < t1
+	return t1 < t0
 }
 
 func (b *Box) BoundingBox() Box {

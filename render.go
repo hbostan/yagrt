@@ -34,7 +34,7 @@ func Render(sceneFile string) {
 	start := time.Now()
 	scene := ParseScene(sceneFile)
 	scene.BVH.DebugPrint(0)
-	fmt.Printf("Parsing Done: %v", time.Since(start))
+	fmt.Printf("Parsing Done: %v\n", time.Since(start))
 
 	for i, camera := range scene.Cameras {
 		fmt.Printf("Rendering Camera %v (%v)\n", i+1, camera.ImageName)
@@ -45,7 +45,8 @@ func Render(sceneFile string) {
 		image := image.NewNRGBA(image.Rect(0, 0, camera.Resolution.Width, camera.Resolution.Height))
 		for y := 0; y < camera.Resolution.Height; y++ {
 			wg.Add(1)
-			go SubRender(0, y, camera.Resolution.Width, y+1, scene, &camera, image, &wg)
+			//go SubRender(0, y, camera.Resolution.Width, y+1, scene, &camera, image, &wg)
+			SubRender(0, y, camera.Resolution.Width, camera.Resolution.Height, scene, &camera, image, &wg)
 		}
 		wg.Wait()
 		if err = png.Encode(f, image); err != nil {

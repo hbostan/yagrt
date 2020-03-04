@@ -2,17 +2,20 @@ package yagrt
 
 // Mesh defies a set of Triangles and a material for them
 type Mesh struct {
-	Triangles []*Triangle
+	Triangles []Shape
 	Mat       Material
 	Box       Box
+	BVH       *BVHNode
 }
 
-func NewMesh(triangles []*Triangle, mat Material) *Mesh {
-	box := triangles[0].BoundingBox()
-	for _, t := range triangles {
-		box = box.Extend(t.BoundingBox())
-	}
-	return &Mesh{triangles, mat, box}
+func NewMesh(triangles []Shape, mat Material) *Mesh {
+	bvh := NewBVH(triangles)
+	box := bvh.BoundingBox()
+	// box := triangles[0].BoundingBox()
+	// for _, t := range triangles {
+	// 	box = box.Extend(t.BoundingBox())
+	// }
+	return &Mesh{triangles, mat, box, bvh}
 }
 
 func (m *Mesh) BoundingBox() Box {
@@ -28,6 +31,7 @@ func (m *Mesh) Material() *Material {
 func (m *Mesh) Intersect(r Ray, hit *Hit) bool {
 	var closestHit Hit
 	rayHit := false
+	// rayHit = m.BVH.Intersect(r, hit)
 	for _, triangle := range m.Triangles {
 		var innerHit Hit
 		if isHit := triangle.Intersect(r, &innerHit); isHit && (!rayHit || innerHit.T < closestHit.T) {
@@ -38,7 +42,7 @@ func (m *Mesh) Intersect(r Ray, hit *Hit) bool {
 	hit.T = closestHit.T
 	hit.Shape = m
 	hit.Normal = closestHit.Normal
-	return true
+	return rayHit
 }
 
 // Triangle consists of three points and a material
