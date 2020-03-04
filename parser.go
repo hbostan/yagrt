@@ -12,7 +12,13 @@ import (
 // ParseScene parses the given xml scene and fill in a Scene struct
 // TODO: Fix this crappy code
 func ParseScene(filename string) *Scene {
-	var scene Scene
+	var backgroundColor, ambientLight Color
+	var cameras []Camera
+	var pointLights []PointLight
+	var materials []Material
+	var vertexData []Vector
+	var shapes []Shape
+
 	doc := etree.NewDocument()
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		fmt.Println("Cannot find XML:", filename)
@@ -29,7 +35,7 @@ func ParseScene(filename string) *Scene {
 		if err != nil {
 			fmt.Println("Cannot set BackgroundColor")
 		}
-		scene.BackgroundColor = col
+		backgroundColor = col
 	}
 
 	// Shadow Epsilon
@@ -53,10 +59,10 @@ func ParseScene(filename string) *Scene {
 	}
 	// Cameras
 	elem = root.SelectElement("Cameras")
-	cameras := elem.SelectElements("Camera")
-	for _, cam := range cameras {
+	cams := elem.SelectElements("Camera")
+	for _, cam := range cams {
 		camera := parseCamera(cam)
-		scene.Cameras = append(scene.Cameras, camera)
+		cameras = append(cameras, camera)
 	}
 
 	elem = root.SelectElement("Lights")
@@ -66,20 +72,20 @@ func ParseScene(filename string) *Scene {
 	if err != nil {
 		fmt.Println("Cannot parse Ambient Light")
 	}
-	scene.AmbientLight = amb
+	ambientLight = amb
 	// Lights
 	lights := elem.SelectElements("PointLight")
 	for _, l := range lights {
 		light := parseLight(l)
-		scene.PointLights = append(scene.PointLights, light)
+		pointLights = append(pointLights, light)
 	}
 
 	// Materials
 	elem = root.SelectElement("Materials")
-	materials := elem.SelectElements("Material")
-	for _, mat := range materials {
+	mats := elem.SelectElements("Material")
+	for _, mat := range mats {
 		material := parseMaterial(mat)
-		scene.Materials = append(scene.Materials, material)
+		materials = append(materials, material)
 	}
 
 	// VertexData
@@ -95,42 +101,49 @@ func ParseScene(filename string) *Scene {
 			fmt.Printf("Cannot parse %v Vertex %v", i, err)
 			continue
 		}
-		scene.VertexData = append(scene.VertexData, vec)
+		vertexData = append(vertexData, vec)
 	}
 
 	// Objects
 	elem = root.SelectElement("Objects")
 	spheres := elem.SelectElements("Sphere")
 	for _, sph := range spheres {
-		sphere := parseSphere(sph, scene.VertexData, scene.Materials)
-		scene.Shapes = append(scene.Shapes, sphere)
+		sphere := parseSphere(sph, vertexData, materials)
+		shapes = append(shapes, sphere)
 	}
 
 	triangles := elem.SelectElements("Triangle")
 	for _, trg := range triangles {
-		triangle := parseTriangle(trg, scene.VertexData, scene.Materials)
-		scene.Shapes = append(scene.Shapes, triangle)
+		triangle := parseTriangle(trg, vertexData, materials)
+		shapes = append(shapes, triangle)
 	}
 
 	meshes := elem.SelectElements("Mesh")
 	for _, msh := range meshes {
-		mesh := parseMesh(msh, scene.VertexData, scene.Materials)
-		scene.Shapes = append(scene.Shapes, mesh)
+		mesh := parseMesh(msh, vertexData, materials)
+		shapes = append(shapes, mesh)
 	}
-	return &scene
+	return NewScene(
+		backgroundColor,
+		cameras,
+		ambientLight,
+		pointLights,
+		materials,
+		vertexData,
+		shapes,
+	)
 }
 
 func parseMesh(msh *etree.Element, vertexData []Vector, materials []Material) *Mesh {
-	var mesh Mesh
 	elem := msh.SelectElement("Material")
 	mat, err := strconv.ParseInt(strings.TrimSpace(elem.Text()), 10, 64)
 	if err != nil {
 		fmt.Println("Cannot parse mesh material")
 	}
-	mesh.Mat = materials[int(mat)-1]
+	meshmat := materials[int(mat)-1]
+	var triangles []*Triangle
 	faces := strings.Split(strings.TrimSpace(msh.SelectElement("Faces").Text()), "\n")
 	for i, face := range faces {
-		triangle := Triangle{}
 		indices := strings.Fields(strings.TrimSpace(face))
 		v1, err1 := strconv.ParseInt(indices[0], 10, 64)
 		v2, err2 := strconv.ParseInt(indices[1], 10, 64)
@@ -138,17 +151,13 @@ func parseMesh(msh *etree.Element, vertexData []Vector, materials []Material) *M
 		if err1 != nil || err2 != nil || err3 != nil {
 			fmt.Printf("Cannot parse indices of face with id %v\n", i)
 		}
-		triangle.Mat = mesh.Mat
-		triangle.V0 = vertexData[int(v1)-1]
-		triangle.V1 = vertexData[int(v2)-1]
-		triangle.V2 = vertexData[int(v3)-1]
-		mesh.Triangles = append(mesh.Triangles, triangle)
+		triangles = append(triangles, NewTriangle(vertexData[int(v1)-1], vertexData[int(v2)-1], vertexData[int(v3)-1], materials[int(mat)-1]))
 	}
-	return &mesh
+	return NewMesh(triangles, meshmat)
 }
 
 func parseTriangle(trg *etree.Element, vertexData []Vector, materials []Material) *Triangle {
-	var triangle Triangle
+
 	elem := trg.SelectElement("Material")
 	mat, err := strconv.ParseInt(strings.TrimSpace(elem.Text()), 10, 64)
 	if err != nil {
@@ -162,15 +171,11 @@ func parseTriangle(trg *etree.Element, vertexData []Vector, materials []Material
 	if err1 != nil || err2 != nil || err3 != nil {
 		fmt.Printf("Cannot parse indices of triangle with id %v\n", trg.SelectAttr("id"))
 	}
-	triangle.Mat = materials[int(mat)-1]
-	triangle.V0 = vertexData[int(v1)-1]
-	triangle.V1 = vertexData[int(v2)-1]
-	triangle.V2 = vertexData[int(v3)-1]
-	return &triangle
+
+	return NewTriangle(vertexData[int(v1)-1], vertexData[int(v2)-1], vertexData[int(v3)-1], materials[int(mat)-1])
 }
 
 func parseSphere(sph *etree.Element, vertexData []Vector, materials []Material) *Sphere {
-	var sphere Sphere
 	elem := sph.SelectElement("Material")
 	mat, err := strconv.ParseInt(strings.TrimSpace(elem.Text()), 10, 64)
 	if err != nil {
@@ -186,10 +191,7 @@ func parseSphere(sph *etree.Element, vertexData []Vector, materials []Material) 
 	if err != nil {
 		fmt.Println("Cannot parse sphere Center")
 	}
-	sphere.Mat = materials[int(mat)-1]
-	sphere.Radius = rad
-	sphere.Origin = vertexData[cen-1]
-	return &sphere
+	return NewSphere(vertexData[cen-1], rad, materials[(int(mat)-1)])
 }
 
 func parseMaterial(mat *etree.Element) Material {

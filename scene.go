@@ -11,25 +11,38 @@ type Scene struct {
 	Materials       []Material
 	VertexData      []Vector
 	Shapes          []Shape
+	BVH             *BVHNode
+}
+
+func NewScene(bc Color, cams []Camera, al Color, pl []PointLight, mats []Material, vdata []Vector, shapes []Shape) *Scene {
+	// BVH Construction Here
+	return &Scene{bc, cams, al, pl, mats, vdata, shapes, NewBVH(shapes)}
 }
 
 // Intersect tries to intersect a given ray with each object in the scene and
 // returns the closest intersection as a Hit struct
-func (s *Scene) Intersect(r Ray) *Hit {
-	var closestHit *Hit = nil
-	for _, shape := range s.Shapes {
-		hit := shape.Intersect(r)
-		if hit != nil && hit.T > HitEpsilon && (closestHit == nil || hit.T < closestHit.T) {
-			closestHit = hit
-		}
-	}
-	return closestHit
+func (s *Scene) Intersect(r Ray, hit *Hit) bool {
+	// var closestHit Hit
+	rayHit := false
+	rayHit = s.BVH.Intersect(r, hit)
+	// for _, shape := range s.Shapes {
+	// 	var innerHit Hit
+	// 	if isHit := shape.Intersect(r, &innerHit); isHit && innerHit.T > HitEpsilon && (!rayHit || innerHit.T < closestHit.T) {
+	// 		rayHit = true
+	// 		closestHit = innerHit
+	// 	}
+	// }
+	// hit.T = closestHit.T
+	// hit.Shape = closestHit.Shape
+	// hit.Normal = closestHit.Normal
+	return rayHit
 }
 
 // Sample is used to sample a scene to get a color for that sample
 func (s *Scene) Sample(r Ray) Color {
 	col := s.BackgroundColor
-	if hit := s.Intersect(r); hit != nil {
+	var hit Hit
+	if isHit := s.Intersect(r, &hit); isHit {
 		intersect := r.Origin.Add(r.Dir.Mul(hit.T))
 		normal := hit.Normal
 		mat := hit.Shape.Material()
@@ -43,7 +56,8 @@ func (s *Scene) Sample(r Ray) Color {
 			lightDirection := lightVector.Normalize()
 			lightDistance := lightVector.Length()
 			shadowRay := Ray{intersect, lightDirection}
-			if shadowHit := s.Intersect(shadowRay); shadowHit != nil {
+			var shadowHit Hit
+			if inShadow := s.Intersect(shadowRay, &shadowHit); inShadow {
 				shadowDist := shadowRay.Dir.Mul(shadowHit.T).Length()
 				if shadowDist > ShadowEpsilon && shadowDist < lightDistance-ShadowEpsilon {
 					continue

@@ -29,7 +29,7 @@ func (v Vector) Cross(o Vector) Vector {
 
 // Normalize normalizes the vector by dividing it by its length
 func (v Vector) Normalize() Vector {
-	return Vector{v.X, v.Y, v.Z}.DivScalar(v.Length())
+	return Vector{v.X, v.Y, v.Z}.Div(v.Length())
 }
 
 // Add adds two vectors together
@@ -37,19 +37,9 @@ func (v Vector) Add(o Vector) Vector {
 	return Vector{v.X + o.X, v.Y + o.Y, v.Z + o.Z}
 }
 
-// AddScalar adds a scalar value to all of the components of a vector
-func (v Vector) AddScalar(s float64) Vector {
-	return Vector{v.X + s, v.Y + s, v.Z + s}
-}
-
 // Sub subtracts two vectors
 func (v Vector) Sub(o Vector) Vector {
 	return Vector{v.X - o.X, v.Y - o.Y, v.Z - o.Z}
-}
-
-// SubScalar subtracts a scalar value from all the components of a vector.
-func (v Vector) SubScalar(s float64) Vector {
-	return Vector{v.X - s, v.Y - s, v.Z - s}
 }
 
 // Mul multiplies the vector with the given multiplier.
@@ -58,8 +48,28 @@ func (v Vector) Mul(m float64) Vector {
 }
 
 // DivScalar divies the vector by the given divisor.
-func (v Vector) DivScalar(d float64) Vector {
+func (v Vector) Div(d float64) Vector {
 	return Vector{v.X / d, v.Y / d, v.Z / d}
+}
+
+func (a Vector) MulVector(b Vector) Vector {
+	return Vector{a.X * b.X, a.Y * b.Y, a.Z * b.Z}
+}
+
+func (a Vector) DivVector(b Vector) Vector {
+	return Vector{a.X / b.X, a.Y / b.Y, a.Z / b.Z}
+}
+
+func (a Vector) Min(b Vector) Vector {
+	return Vector{math.Min(a.X, b.X), math.Min(a.Y, b.Y), math.Min(a.Z, b.Z)}
+}
+
+func (a Vector) Max(b Vector) Vector {
+	return Vector{math.Max(a.X, b.X), math.Max(a.Y, b.Y), math.Max(a.Z, b.Z)}
+}
+
+func (n Vector) Reflect(i Vector) Vector {
+	return i.Sub(n.Mul(2 * n.Dot(i)))
 }
 
 // Negate flips the sign of a vector, same as Vector.Mul(-1)

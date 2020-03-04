@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"sync"
+	"time"
 )
 
 // SubRender is a Goroutine which renders the given part of an image
@@ -29,7 +30,11 @@ func SubRender(xStart int, yStart int, xEnd int, yEnd int, scene *Scene, camera 
 // scene file.
 func Render(sceneFile string) {
 	var wg sync.WaitGroup
+	fmt.Println("Parsing Scene")
+	start := time.Now()
 	scene := ParseScene(sceneFile)
+	scene.BVH.DebugPrint(0)
+	fmt.Printf("Parsing Done: %v", time.Since(start))
 
 	for i, camera := range scene.Cameras {
 		fmt.Printf("Rendering Camera %v (%v)\n", i+1, camera.ImageName)
