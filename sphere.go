@@ -1,70 +1,51 @@
 package yagrt
 
-import "math"
+import (
+	"math"
+	"math/rand"
+)
 
-// Sphere represents a sphere in 3D, it has an origin and a radius
 type Sphere struct {
-	Origin Vector
+	Center Vector
 	Radius float64
-	Mat    Material
-	Box    Box
+	Col    Color
 }
 
-func NewSphere(origin Vector, radius float64, mat Material) *Sphere {
-	min := origin.Sub(Vector{radius, radius, radius})
-	max := origin.Add(Vector{radius, radius, radius})
-	return &Sphere{origin, radius, mat, Box{min, max}}
-}
-
-// Intersect calculates the intersection point of a ray with the sphere
-// It returns the distance of the intersection from the ray's origin if
-// ray intersects the sphere, INF if it doesn't.
 func (s *Sphere) Intersect(r Ray, hit *Hit) bool {
-	to := r.Origin.Sub(s.Origin)
-	a := r.Dir.Dot(r.Dir)
-	b := 2 * r.Dir.Dot(to)
+	to := r.Origin.Sub(s.Center)
+	a := r.Direction.Dot(r.Direction)
+	b := 2 * to.Dot(r.Direction)
 	c := to.Dot(to) - s.Radius*s.Radius
 	d := b*b - 4*a*c
-	if d < HitEpsilon {
-		return false
-	}
-	d = math.Sqrt(d)
-	t1 := (-b + d) / (2 * a)
-	t2 := (-b - d) / (2 * a)
-	var small float64
-	var big float64
-	if small = t1; t2 < t1 {
-		small = t2
-	}
-	if big = t1; t2 > t1 {
-		big = t2
-	}
-
-	if small < HitEpsilon {
-		if big < HitEpsilon {
-			return false
+	if d > 0 {
+		t := (-b - math.Sqrt(d)) / (2 * a)
+		if t > 0 {
+			p := r.Origin.Add(r.Direction.Mul(t))
+			hit.T = t
+			hit.Ray = Ray{p, s.Normal(p)}
+			hit.Shape = s
+			return true
 		}
-		small = big
 	}
-
-	p := r.Origin.Add(r.Dir.Mul(small))
-	n := s.Normal(p)
-	hit.T = small
-	hit.Shape = s
-	hit.Normal = n
-	return true
+	return false
 }
 
-// Normal returns the sufrace normal of a sphere
-func (s *Sphere) Normal(p Vector) Vector {
-	return p.Sub(s.Origin).Normalize()
+func (s *Sphere) Color() Color {
+	return s.Col
 }
 
-// Material returns the material of a sphere
-func (s *Sphere) Material() *Material {
-	return &s.Mat
+func (s *Sphere) Normal(position Vector) Vector {
+	return position.Sub(s.Center).Normalize()
 }
 
-func (s *Sphere) BoundingBox() Box {
-	return s.Box
+func (s *Sphere) RandomPoint() Vector {
+	for {
+		x := rand.Float64()*2 - 1
+		y := rand.Float64()*2 - 1
+		z := rand.Float64()*2 - 1
+		v := Vector{x, y, z}
+		if v.Length() <= 1 {
+			return v.Mul(s.Radius).Add(s.Center)
+		}
+	}
 }

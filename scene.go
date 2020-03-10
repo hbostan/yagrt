@@ -1,82 +1,63 @@
 package yagrt
 
-import (
-	"fmt"
-	"math"
-)
+import "math"
 
-// Scene describes a scene with cameras, lights, shapes and their materials
 type Scene struct {
-	BackgroundColor Color
-	Cameras         []Camera
-	AmbientLight    Color
-	PointLights     []PointLight
-	Materials       []Material
-	VertexData      []Vector
-	Shapes          []Shape
-	BVH             *BVHNode
+	Shapes []Shape
+	Lights []Shape
 }
 
-func NewScene(bc Color, cams []Camera, al Color, pl []PointLight, mats []Material, vdata []Vector, shapes []Shape) *Scene {
-	// BVH Construction Here
-	bvh := NewBVH(shapes)
-	fmt.Printf("Background: %v\nAmbient: %v\nCams: %v\nMats: %v\nVertex: %v\nShapes: %v\nBVH: %v\n", bc, al, cams, pl, len(vdata), len(shapes), bvh)
-	return &Scene{bc, cams, al, pl, mats, vdata, shapes, bvh}
+func (s *Scene) AddShape(shape Shape) {
+	s.Shapes = append(s.Shapes, shape)
 }
 
-// Intersect tries to intersect a given ray with each object in the scene and
-// returns the closest intersection as a Hit struct
+func (s *Scene) AddLight(light Shape) {
+	s.Lights = append(s.Lights, light)
+}
+
 func (s *Scene) Intersect(r Ray, hit *Hit) bool {
-	// var closestHit Hit
-	rayHit := false
-	rayHit = s.BVH.Intersect(r, hit)
-	// for _, shape := range s.Shapes {
-	// 	var innerHit Hit
-	// 	if isHit := shape.Intersect(r, &innerHit); isHit && innerHit.T > HitEpsilon && (!rayHit || innerHit.T < closestHit.T) {
-	// 		rayHit = true
-	// 		closestHit = innerHit
-	// 	}
-	// }
-	// hit.T = closestHit.T
-	// hit.Shape = closestHit.Shape
-	// hit.Normal = closestHit.Normal
-	return rayHit
-}
-
-// Sample is used to sample a scene to get a color for that sample
-func (s *Scene) Sample(r Ray) Color {
-	col := s.BackgroundColor
-	var hit Hit
-	if isHit := s.Intersect(r, &hit); isHit {
-		intersect := r.Origin.Add(r.Dir.Mul(hit.T))
-		normal := hit.Normal
-		mat := hit.Shape.Material()
-
-		// Ambient
-		col = col.Add(mat.AmbientReflectance.MulColor(s.AmbientLight))
-		// Light it up!
-		for _, light := range s.PointLights {
-			intersect = intersect.Add(normal.Mul(ShadowEpsilon))
-			lightVector := light.Position.Sub(intersect)
-			lightDirection := lightVector.Normalize()
-			lightDistance := lightVector.Length()
-			shadowRay := Ray{intersect, lightDirection}
-			var shadowHit Hit
-			if inShadow := s.Intersect(shadowRay, &shadowHit); inShadow {
-				shadowDist := shadowRay.Dir.Mul(shadowHit.T).Length()
-				if shadowDist > ShadowEpsilon && shadowDist < lightDistance-ShadowEpsilon {
-					continue
-				}
+	ok := false
+	for _, shape := range s.Shapes {
+		innerHit := Hit{}
+		innerHit.T = INF
+		if isHit := shape.Intersect(r, &innerHit); isHit {
+			if innerHit.T < hit.T {
+				*hit = innerHit
+				ok = true
 			}
-			// Diffuse
-			diffCosTheta := math.Max(0, lightDirection.Dot(normal))
-			attenuatedLight := light.Intensity.Div(lightDistance * lightDistance)
-			col = col.Add(mat.DiffuseReflectance.MulColor(attenuatedLight).Mul(diffCosTheta))
-			// Specular
-			halfVector := lightDirection.Sub(r.Dir.Normalize()).Normalize()
-			specCosTheta := math.Max(0, halfVector.Dot(normal))
-			col = col.Add(mat.SpecularReflectance.MulColor(attenuatedLight).Mul((math.Pow(specCosTheta, mat.PhongExponent)) / lightDistance * lightDistance))
 		}
 	}
-	return col
+	return ok
+}
+
+func (s *Scene) Shadow(r Ray) bool {
+	for _, shape := range s.Shapes {
+		hit := Hit{}
+		if isHit := shape.Intersect(r, &hit); isHit {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Scene) Light(r Ray) Color {
+	color := Color{}
+	for _, light := range s.Lights {
+		shadowRay := Ray{r.Origin, light.RandomPoint().Sub(r.Origin).Normalize()}
+		if s.Shadow(shadowRay) {
+			continue
+		}
+		cos := math.Max(0, shadowRay.Direction.Dot(r.Direction))
+		color = color.Add(light.Color().Mul(cos))
+	}
+	return color
+}
+
+func (s *Scene) Sample(r Ray) Color {
+	hit := Hit{}
+	hit.T = INF
+	if isHit := s.Intersect(r, &hit); isHit {
+		return hit.Shape.Color().MulColor(s.Light(hit.Ray))
+	}
+	return Color{}
 }
