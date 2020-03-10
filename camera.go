@@ -1,6 +1,9 @@
 package yagrt
 
-import "math"
+import (
+	"math"
+	"math/rand"
+)
 
 // Camera is the point where we look into the scene
 // it holds a position, and the u, v, w vectors.
@@ -22,8 +25,8 @@ func (c *Camera) LookAt(p, gaze, up Vector, fovY float64) {
 // CastRay creates a Ray from the position of the camera to the (x,y) on image plane
 func (c *Camera) CastRay(x, y, w, h int) Ray {
 	aspect := float64(w) / float64(h)
-	px := (float64(x)/(float64(w)-1))*2 - 1
-	py := -((float64(y)/(float64(h)-1))*2 - 1)
+	px := ((float64(x)+rand.Float64()-0.5)/(float64(w)-1))*2 - 1
+	py := -(((float64(y)+rand.Float64()-0.5)/(float64(h)-1))*2 - 1)
 	d := Vector{}
 	d = d.Add(c.U.Mul(px * aspect))
 	d = d.Add(c.V.Mul(py))

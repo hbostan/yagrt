@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"image/png"
+	"os"
 
 	"github.com/hbostann/yagrt"
 )
@@ -15,6 +17,15 @@ func main() {
 
 	camera := yagrt.Camera{}
 	camera.LookAt(yagrt.Vector{0, 0, -5}, yagrt.Vector{0, 0, 0}, yagrt.Vector{0, 1, 0}, 45)
-	fmt.Printf("Rendering:\n%+v", camera)
-	yagrt.Render("./outputs/out.png", 800, 600, &scene, &camera)
+	image := yagrt.Render(&scene, &camera, 800, 600, 16)
+	file, err := os.Create("outputs/out.png")
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+	err = png.Encode(file, image)
+	if err != nil {
+		fmt.Printf("Error encoding %v\n", file)
+		panic(err)
+	}
 }
