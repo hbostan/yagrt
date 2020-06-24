@@ -11,8 +11,8 @@ This is a CPU ray tracer written purely in Golang.
 :white_check_mark: Shadows  
 
 TODO:
-- Acceleration structures (Possibly BVH)
-- Reflection and Refraction
+- Acceleration structures (in progress)
+- Reflection and Refraction (in progress)
 - Many other Light types
 - Depth of Field
 - Obj and Stl support
